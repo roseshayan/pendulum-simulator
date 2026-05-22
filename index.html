@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kinetic Minimalist Pendulum</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap');
+
+        :root {
+            --bg-color-1: #f0f4f8;
+            --bg-color-2: #d9e2ec;
+            --glass-bg: rgba(255, 255, 255, 0.45);
+            --glass-border: rgba(255, 255, 255, 0.6);
+            --glass-shadow: rgba(0, 0, 0, 0.05);
+            --text-main: #2d3748;
+            --text-muted: #718096;
+            --accent: #4a5568;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, var(--bg-color-1) 0%, var(--bg-color-2) 100%);
+            color: var(--text-main);
+        }
+
+        /* SVG Visualization */
+        #pendulum-svg {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        .string {
+            stroke: var(--accent);
+            stroke-width: 2px;
+            stroke-linecap: round;
+        }
+
+        .pivot {
+            fill: var(--text-main);
+        }
+
+        .bob {
+            fill: var(--glass-bg);
+            stroke: var(--accent);
+            stroke-width: 3px;
+            cursor: grab;
+            backdrop-filter: blur(4px); /* SVG glassmorphism effect */
+            transition: fill 0.2s ease;
+        }
+
+        .bob:active {
+            cursor: grabbing;
+            fill: rgba(255, 255, 255, 0.8);
+        }
+
+        /* Glassmorphism UI Panels */
+        .glass-panel {
+            position: absolute;
+            background: var(--glass-bg);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 8px 32px var(--glass-shadow);
+            z-index: 10;
+        }
+
+        /* Data Panel (Top Left) */
+        #data-panel {
+            top: 30px;
+            left: 30px;
+            min-width: 220px;
+        }
+
+        /* Settings Panel (Top Right) */
+        #controls-panel {
+            top: 30px;
+            right: 30px;
+            width: 320px;
+        }
+
+        h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 16px;
+            letter-spacing: -0.5px;
+        }
+
+        .data-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            font-size: 0.95rem;
+        }
+
+        .data-label {
+            color: var(--text-muted);
+            font-weight: 300;
+        }
+
+        .data-value {
+            font-variant-numeric: tabular-nums;
+            font-weight: 600;
+        }
+
+        /* Minimalist Sliders */
+        .control-group {
+            margin-bottom: 20px;
+        }
+
+        .control-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        input[type=range] {
+            -webkit-appearance: none;
+            width: 100%;
+            background: transparent;
+        }
+
+        input[type=range]:focus {
+            outline: none;
+        }
+
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%;
+            height: 6px;
+            cursor: pointer;
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+
+        input[type=range]::-webkit-slider-thumb {
+            height: 20px;
+            width: 20px;
+            border-radius: 50%;
+            background: #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+            cursor: pointer;
+            -webkit-appearance: none;
+            margin-top: -7px;
+            border: 1px solid rgba(0,0,0,0.05);
+        }
+
+        hr {
+            border: 0;
+            height: 1px;
+            background: var(--glass-border);
+            margin: 20px 0;
+        }
+
+        /* Responsiveness */
+        @media (max-width: 768px) {
+            .glass-panel {
+                width: calc(100% - 40px) !important;
+                left: 20px !important;
+                right: 20px !important;
+            }
+            #data-panel {
+                top: 20px;
+            }
+            #controls-panel {
+                top: auto;
+                bottom: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- SVG Visualization (No Canvas API) -->
+    <svg id="pendulum-svg">
+        <line id="string" class="string" x1="0" y1="0" x2="0" y2="0" />
+        <circle id="pivot" class="pivot" cx="0" cy="0" r="6" />
+        <circle id="bob" class="bob" cx="0" cy="0" r="20" />
+    </svg>
+
+    <!-- Real-time Data Panel -->
+    <div id="data-panel" class="glass-panel">
+        <h2>Telemetry</h2>
+        <div class="data-row">
+            <span class="data-label">Angle (θ)</span>
+            <span class="data-value" id="val-angle">0.00°</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">Velocity (ω)</span>
+            <span class="data-value" id="val-vel">0.00 rad/s</span>
+        </div>
+        <div class="data-row">
+            <span class="data-label">Accel. (α)</span>
+            <span class="data-value" id="val-acc">0.00 rad/s²</span>
+        </div>
+    </div>
+
+    <!-- Controls Panel -->
+    <div id="controls-panel" class="glass-panel">
+        <h2>Parameters</h2>
+        
+        <div class="control-group">
+            <div class="control-header">
+                <span class="data-label">Length (L)</span>
+                <span class="data-value" id="lbl-length">2.5 m</span>
+            </div>
+            <input type="range" id="slider-length" min="100" max="500" value="250">
+        </div>
+
+        <div class="control-group">
+            <div class="control-header">
+                <span class="data-label">Mass (m)</span>
+                <span class="data-value" id="lbl-mass">10 kg</span>
+            </div>
+            <input type="range" id="slider-mass" min="1" max="50" value="10">
+        </div>
+
+        <div class="control-group">
+            <div class="control-header">
+                <span class="data-label">Friction (μ)</span>
+                <span class="data-value" id="lbl-friction">0.5</span>
+            </div>
+            <input type="range" id="slider-friction" min="0" max="5" step="0.1" value="0.5">
+        </div>
+
+        <hr>
+        <div class="data-label" style="text-align: center; font-size: 0.8rem;">
+            Drag and drop the pendulum bob to interact.
+        </div>
+    </div>
+
+    <script>
+        // Physics variables and state
+        let angle = Math.PI / 4; // Initial angle (45 degrees)
+        let angularVelocity = 0;
+        let angularAcceleration = 0;
+        
+        // Physical Constants & Parameters
+        const gravity = 9.81; // m/s^2
+        let lengthPx = 250;   // pixels
+        let mass = 10;        // kg
+        let friction = 0.5;   // damping coefficient
+        
+        // Interaction state
+        let isDragging = false;
+        
+        // DOM Elements
+        const svg = document.getElementById('pendulum-svg');
+        const stringEl = document.getElementById('string');
+        const bobEl = document.getElementById('bob');
+        const pivotEl = document.getElementById('pivot');
+        
+        // UI Elements
+        const valAngle = document.getElementById('val-angle');
+        const valVel = document.getElementById('val-vel');
+        const valAcc = document.getElementById('val-acc');
+        
+        const sliderLength = document.getElementById('slider-length');
+        const sliderMass = document.getElementById('slider-mass');
+        const sliderFriction = document.getElementById('slider-friction');
+        
+        const lblLength = document.getElementById('lbl-length');
+        const lblMass = document.getElementById('lbl-mass');
+        const lblFriction = document.getElementById('lbl-friction');
+
+        // Dynamic pivot position based on window size
+        let pivotX, pivotY;
+        function updatePivot() {
+            pivotX = window.innerWidth / 2;
+            pivotY = window.innerHeight * 0.15; // 15% from top
+            pivotEl.setAttribute('cx', pivotX);
+            pivotEl.setAttribute('cy', pivotY);
+            stringEl.setAttribute('x1', pivotX);
+            stringEl.setAttribute('y1', pivotY);
+        }
+        window.addEventListener('resize', updatePivot);
+        updatePivot();
+
+        // Control Listeners
+        sliderLength.addEventListener('input', (e) => {
+            lengthPx = parseFloat(e.target.value);
+            lblLength.innerText = (lengthPx / 100).toFixed(1) + ' m';
+        });
+
+        sliderMass.addEventListener('input', (e) => {
+            mass = parseFloat(e.target.value);
+            lblMass.innerText = mass + ' kg';
+            // Update physical radius based on mass (square root for realistic volume scaling)
+            let radius = Math.sqrt(mass) * 4 + 8;
+            bobEl.setAttribute('r', radius);
+        });
+
+        sliderFriction.addEventListener('input', (e) => {
+            friction = parseFloat(e.target.value);
+            lblFriction.innerText = friction.toFixed(1);
+        });
+
+        // Initialize bob size
+        bobEl.setAttribute('r', Math.sqrt(mass) * 4 + 8);
+
+        // --- Interaction (Drag & Drop) ---
+        function getMousePos(evt) {
+            let CTM = svg.getScreenCTM();
+            let clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+            let clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+            return {
+                x: (clientX - CTM.e) / CTM.a,
+                y: (clientY - CTM.f) / CTM.d
+            };
+        }
+
+        function startDrag(e) {
+            e.preventDefault(); // Prevent scrolling on touch devices
+            isDragging = true;
+            angularVelocity = 0;
+            angularAcceleration = 0;
+            
+            window.addEventListener('mousemove', drag);
+            window.addEventListener('touchmove', drag, {passive: false});
+            window.addEventListener('mouseup', endDrag);
+            window.addEventListener('touchend', endDrag);
+        }
+
+        function drag(e) {
+            if (!isDragging) return;
+            let pos = getMousePos(e);
+            let dx = pos.x - pivotX;
+            let dy = pos.y - pivotY;
+            // atan2 computes angle relative to straight down (y-axis)
+            angle = Math.atan2(dx, dy); 
+        }
+
+        function endDrag() {
+            isDragging = false;
+            window.removeEventListener('mousemove', drag);
+            window.removeEventListener('touchmove', drag);
+            window.removeEventListener('mouseup', endDrag);
+            window.removeEventListener('touchend', endDrag);
+        }
+
+        bobEl.addEventListener('mousedown', startDrag);
+        bobEl.addEventListener('touchstart', startDrag, {passive: false});
+
+        // --- Classical Physics Engine ---
+        let lastTime = performance.now();
+        const dt = 1/60; // Locked internal time step for smooth 60fps physics
+
+        function animate(currentTime) {
+            requestAnimationFrame(animate);
+
+            // Using Semi-Implicit Euler Integration for accurate orbital mechanics
+            if (!isDragging) {
+                // Scale pixels to physical meters (100px = 1m)
+                let lengthMeters = lengthPx / 100;
+
+                // Formula: α = -(g / L) * sin(θ) - (friction / (mass * L^2)) * ω
+                let gravityTorque = - (gravity / lengthMeters) * Math.sin(angle);
+                let frictionTorque = - (friction / (mass * Math.pow(lengthMeters, 2))) * angularVelocity;
+                
+                angularAcceleration = gravityTorque + frictionTorque;
+                
+                angularVelocity += angularAcceleration * dt;
+                angle += angularVelocity * dt;
+            }
+
+            // Calculate Cartesian coordinates
+            let bobX = pivotX + lengthPx * Math.sin(angle);
+            let bobY = pivotY + lengthPx * Math.cos(angle);
+
+            // Update DOM / SVG elements
+            stringEl.setAttribute('x2', bobX);
+            stringEl.setAttribute('y2', bobY);
+            bobEl.setAttribute('cx', bobX);
+            bobEl.setAttribute('cy', bobY);
+
+            // Update Telemetry Display
+            let angleDeg = (angle * 180 / Math.PI) % 360;
+            if (angleDeg > 180) angleDeg -= 360;
+            if (angleDeg < -180) angleDeg += 360;
+
+            valAngle.innerText = angleDeg.toFixed(2) + '°';
+            valVel.innerText = angularVelocity.toFixed(2) + ' rad/s';
+            valAcc.innerText = angularAcceleration.toFixed(2) + ' rad/s²';
+        }
+
+        // Kick off the rendering loop
+        requestAnimationFrame(animate);
+    </script>
+</body>
+</html>
