@@ -19,7 +19,7 @@ Unlike traditional HTML5 web simulations, this project achieves buttery-smooth 6
 This project is completely vanilla and self-contained within a single file. There are no build steps, package managers, or local servers required.
 
 1. Download or clone this repository.
-2. Locate the `pendulum.html` file.
+2. Locate the `index.html` file.
 3. Double-click the file to open it in any modern web browser (Chrome, Firefox, Safari, Edge).
 
 ## 🛠️ Technologies Used
